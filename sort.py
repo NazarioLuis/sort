@@ -205,9 +205,10 @@ class Sort(object):
     self.min_hits = min_hits
     self.iou_threshold = iou_threshold
     self.trackers = []
+    self.trackers_metadata = []
     self.frame_count = 0
 
-  def update(self, dets=np.empty((0, 5))):
+  def update(self, dets=np.empty((0, 6))):
     """
     Params:
       dets - a numpy array of detections in the format [[x1,y1,x2,y2,score],[x1,y1,x2,y2,score],...]
@@ -239,18 +240,25 @@ class Sort(object):
     for i in unmatched_dets:
         trk = KalmanBoxTracker(dets[i,:])
         self.trackers.append(trk)
+        if len(dets[i])>5:
+            self.trackers_metadata.append([dets[i,4],dets[i,5]])
     i = len(self.trackers)
     for trk in reversed(self.trackers):
+        i -= 1
         d = trk.get_state()[0]
         if (trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits):
-          ret.append(np.concatenate((d,[trk.id+1])).reshape(1,-1)) # +1 as MOT benchmark requires positive
-        i -= 1
+            if len(dets[0])>5:
+                ret.append(np.concatenate((d,[trk.id+1],[self.trackers_metadata[i][0]],[self.trackers_metadata[i][1]])).reshape(1,-1))
+            else:
+                ret.append(np.concatenate((d,[trk.id+1])).reshape(1,-1))
         # remove dead tracklet
         if(trk.time_since_update > self.max_age):
           self.trackers.pop(i)
+          if len(dets[0])>5:
+              self.trackers_metadata.pop(i)
     if(len(ret)>0):
       return np.concatenate(ret)
-    return np.empty((0,5))
+    return np.empty((0,7))
 
 def parse_args():
     """Parse input arguments."""
